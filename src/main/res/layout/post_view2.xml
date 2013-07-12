@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:orientation="horizontal"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:divider="@android:color/darker_gray"
+              android:background="@android:color/background_light">
+
+    <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:showDividers="middle"
+            android:divider="@android:color/darker_gray"
+            android:minHeight="@dimen/thumb_size">
+
+        <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="fill_parent"
+                android:background="#eee"
+                android:minHeight="@dimen/thumb_size"
+                android:minWidth="@dimen/thumb_size">
+
+            <ImageView
+                    android:id="@+id/image"
+                    android:layout_width="@dimen/thumb_size"
+                    android:layout_height="@dimen/thumb_size"
+                    android:scaleType="centerCrop"
+                    />
+        </FrameLayout>
+
+        <LinearLayout
+                android:paddingLeft="8dp"
+                android:paddingRight="4dp"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
+
+            <TextView
+                    android:id="@+id/metadata"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="top"
+                    android:singleLine="true"
+                    android:text="Title"
+                    style="@android:style/TextAppearance.DeviceDefault.Small"/>
+
+            <TextView
+                    android:id="@+id/content"
+                    style="@android:style/TextAppearance.Small"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_gravity="top"
+                    android:autoLink="web"
+                    android:maxLines="4"
+                    android:text="Content Content"/>
+
+            <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:text="Small Text"
+                    android:id="@+id/smallmetadata"
+                    android:textColor="@android:color/darker_gray"
+                    style="@android:style/TextAppearance.Small"/>
+        </LinearLayout>
+
+    </LinearLayout>
+</LinearLayout>
