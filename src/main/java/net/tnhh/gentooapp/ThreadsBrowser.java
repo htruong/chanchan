@@ -396,7 +396,7 @@ public class ThreadsBrowser extends FragmentActivity {
                             args.putString(PostListingFragment.ARG_BOARD_ID, item.boardID);
                             args.putInt(PostListingFragment.ARG_THREAD_ID, item.postID);
                             newFragment.setArguments(args);
-                            
+
                             fList.add(newFragment);
                             mAdapter.notifyDataSetChanged();
                             mPager.setCurrentItem(fList.size() - 1);
