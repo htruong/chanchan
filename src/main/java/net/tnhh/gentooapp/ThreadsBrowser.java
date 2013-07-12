@@ -356,7 +356,7 @@ public class ThreadsBrowser extends FragmentActivity {
         public void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
 
-            Log.d("Fragment", "Creating view...");
+            Log.d("Fragment", "Creating vicew...");
 
             boardID = getArguments().getString(ARG_BOARD_ID);
             segType = getArguments().getInt(ARG_SECTION_TYPE);
