@@ -12,7 +12,8 @@
             android:layout_height="wrap_content"
             android:showDividers="middle"
             android:divider="@android:color/darker_gray"
-            android:minHeight="@dimen/thumb_size">
+            android:minHeight="@dimen/thumb_size"
+            android:baselineAligned="false">
 
         <FrameLayout
                 android:layout_width="wrap_content"
@@ -46,7 +47,6 @@
                     android:layout_weight="1"
                     android:layout_gravity="top"
                     android:singleLine="true"
-                    android:text="Title"
                     style="@android:style/TextAppearance.DeviceDefault.Small"/>
 
             <TextView
@@ -57,14 +57,12 @@
                     android:layout_weight="1"
                     android:layout_gravity="top"
                     android:autoLink="web"
-                    android:maxLines="4"
-                    android:text="Content Content"/>
+                    />
 
             <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:text="Small Text"
                     android:id="@+id/smallmetadata"
                     android:textColor="@android:color/darker_gray"
                     style="@android:style/TextAppearance.Small"/>
