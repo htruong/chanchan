@@ -99,22 +99,22 @@ public class ThreadsBrowser extends FragmentActivity {
     }
 
     @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        //if(getSupportFragmentManager().getBackStackEntryCount() == 0) {
-        if (mAdapter.getCount() == 1) {
-            Log.d("Notice", "Nowhere to back to... Exiting!");
-            this.finish();
-        } else {
-            Log.d("Notice", "Back is pressed!");
-            mAdapter.destroyItemNum(mPager.getCurrentItem());
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+            // handle your back button code here
+            if (mAdapter.getCount() > 1) {
+                Log.d("Notice", "Back is pressed!");
+                mAdapter.destroyItemNum(mPager.getCurrentItem());
+                return true; // consumes the back key event - ActionMode is not finished
+            }
         }
+        return super.dispatchKeyEvent(event);
     }
 
     public static class ChanFragmentAdapter extends FragmentPagerAdapter {
 
         private List<Fragment> fList = new ArrayList<Fragment>();
-        
+
         public ChanFragmentAdapter(FragmentManager fm) {
             super(fm);
         }
@@ -166,13 +166,14 @@ public class ThreadsBrowser extends FragmentActivity {
 
     }
 
-    public class PostListingFragment extends Fragment {
+    public static class PostListingFragment extends Fragment {
         /**
          * The fragment argument representing the section number for this
          * fragment.
          */
 
         ArrayAdapter<DisplayableItemData> threadsAdapter;
+
         public static final String ARG_SECTION_TYPE = "section_type";
         public static final String ARG_BOARD_ID = "section_id";
         public static final String ARG_THREAD_ID = "thread_id";
@@ -187,7 +188,6 @@ public class ThreadsBrowser extends FragmentActivity {
         private int segType;
         private String boardID;
         private int threadID;
-
 
         @Override
         public void onAttach(Activity activity) {
@@ -236,7 +236,7 @@ public class ThreadsBrowser extends FragmentActivity {
         }
 
         public PostListingFragment() {
-
+            super();
         }
 
         @Override
@@ -259,6 +259,7 @@ public class ThreadsBrowser extends FragmentActivity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
+
             Log.d("Fragment", "onCreateView()");
             if (container == null) {
                 Log.i("Fragment", "onCreateView(): container = null");
@@ -266,6 +267,7 @@ public class ThreadsBrowser extends FragmentActivity {
 
             View rootView = inflater.inflate(R.layout.tab_threads_browser, container, false);
             ListView listView = (ListView) rootView.findViewById(R.id.listView);
+
 
             listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
@@ -282,12 +284,12 @@ public class ThreadsBrowser extends FragmentActivity {
                             args.putInt(PostListingFragment.ARG_THREAD_ID, item.postID);
                             newFragment.setArguments(args);
 
-                            FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+                            //FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
                             mAdapter.addFragment(newFragment);
                             //ft.add(R.id.pager, newFragment);
                             mPager.setCurrentItem(mAdapter.getCount() - 1);
-                            ft.addToBackStack(null);
-                            ft.commit();
+                            //ft.addToBackStack(null);
+                            //ft.commit();
 
                             /*
                             fList.add(newFragment);
@@ -407,6 +409,7 @@ public class ThreadsBrowser extends FragmentActivity {
                                         // start with the ImageView
                                         final DisplayableItemData finalCachedItem = cachedItem;
                                         Ion.with(getActivity(), imageUri)
+                                                .group(imageGroup)
                                                 .asBitmap()
                                                 .setCallback(new FutureCallback<Bitmap>() {
                                                     @Override
