@@ -8,7 +8,9 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.app.FragmentStatePagerAdapter;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -64,13 +66,8 @@ public class ThreadsBrowser extends FragmentActivity {
      * intensive, it may be best to switch to a
      * {@link android.support.v4.app.FragmentStatePagerAdapter}.
      */
-    static MyAdapter mAdapter;
 
-    static List<Fragment> fList = new ArrayList<Fragment>();
-
-    /**
-     * The {@link ViewPager} that will host the section contents.
-     */
+    static ChanFragmentAdapter mAdapter;
     static ViewPager mPager;
 
     @Override
@@ -84,8 +81,9 @@ public class ThreadsBrowser extends FragmentActivity {
         args.putInt(PostListingFragment.ARG_SECTION_TYPE, PostListingFragment.ARG_SECTION_TYPE_BOARD);
         args.putString(PostListingFragment.ARG_BOARD_ID, "g");
         newFragment.setArguments(args);
-        fList.add(newFragment);
-        mAdapter = new MyAdapter(getSupportFragmentManager());
+
+        mAdapter = new ChanFragmentAdapter(getSupportFragmentManager());
+        mAdapter.addFragment(newFragment);
 
         ListView listView = (ListView) findViewById(R.id.listView);
 
@@ -100,8 +98,24 @@ public class ThreadsBrowser extends FragmentActivity {
         return true;
     }
 
-    public static class MyAdapter extends FragmentPagerAdapter {
-        public MyAdapter(FragmentManager fm) {
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        //if(getSupportFragmentManager().getBackStackEntryCount() == 0) {
+        if (mAdapter.getCount() == 1) {
+            Log.d("Notice", "Nowhere to back to... Exiting!");
+            this.finish();
+        } else {
+            Log.d("Notice", "Back is pressed!");
+            mAdapter.destroyItemNum(mPager.getCurrentItem());
+        }
+    }
+
+    public static class ChanFragmentAdapter extends FragmentPagerAdapter {
+
+        private List<Fragment> fList = new ArrayList<Fragment>();
+        
+        public ChanFragmentAdapter(FragmentManager fm) {
             super(fm);
         }
 
@@ -121,16 +135,37 @@ public class ThreadsBrowser extends FragmentActivity {
             Fragment fragment = fList.get(position);
             return String.format("/%s/%s",
                     fragment.getArguments().getString(PostListingFragment.ARG_BOARD_ID),
-                    fragment.getArguments().getInt(PostListingFragment.ARG_THREAD_ID)).toUpperCase();
+                    fragment.getArguments().getInt(PostListingFragment.ARG_THREAD_ID));
         }
 
+        @Override
+        public int getItemPosition(Object object){
+            return PagerAdapter.POSITION_NONE;
+        }
+
+        public synchronized void destroyItemNum(int i) {
+            fList.remove(i);
+            notifyDataSetChanged();
+        }
+
+        @Override
+        public void destroyItem(ViewGroup container, int position, Object object) {
+            if (position >= getCount()) {
+                FragmentManager manager = ((Fragment) object).getFragmentManager();
+                FragmentTransaction trans = manager.beginTransaction();
+                trans.remove((Fragment) object);
+                trans.commit();
+            }
+        }
+
+        public synchronized void addFragment(Fragment fragment) {
+            fList.add(fragment);
+            notifyDataSetChanged();
+            // instantiateItem(container, getCount() - 1);
+        }
 
     }
 
-    /**
-     * A dummy fragment representing a section of the app, but that simply
-     * displays dummy text.
-     */
     public class PostListingFragment extends Fragment {
         /**
          * The fragment argument representing the section number for this
@@ -153,17 +188,13 @@ public class ThreadsBrowser extends FragmentActivity {
         private String boardID;
         private int threadID;
 
-        private FragmentManager fm;
 
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
             Log.d("Fragment", "Attaching fragment...");
 
-            // create a tweet adapter for our list view
             threadsAdapter = new ArrayAdapter<DisplayableItemData>(activity, 0) {
-
-
                 @Override
                 public View getView(int position, View convertView, ViewGroup parent) {
                     //Log.d("Fragment", String.format("Getting item %d...", position));
@@ -206,8 +237,74 @@ public class ThreadsBrowser extends FragmentActivity {
 
         public PostListingFragment() {
 
-
         }
+
+        @Override
+        public void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+
+            Log.d("Fragment", "onCreate()");
+
+            boardID = getArguments().getString(ARG_BOARD_ID);
+            segType = getArguments().getInt(ARG_SECTION_TYPE);
+
+            if (segType == ARG_SECTION_TYPE_BOARD) {
+                load4chanJSON(0);
+            } else {
+                threadID = getArguments().getInt(ARG_THREAD_ID);
+                load4chanJSON(0);
+            }
+        }
+
+        @Override
+        public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                 Bundle savedInstanceState) {
+            Log.d("Fragment", "onCreateView()");
+            if (container == null) {
+                Log.i("Fragment", "onCreateView(): container = null");
+            }
+
+            View rootView = inflater.inflate(R.layout.tab_threads_browser, container, false);
+            ListView listView = (ListView) rootView.findViewById(R.id.listView);
+
+            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> arg0, View v, int position, long id) {
+                    //Log.d("clicked", "Position:" + position);
+                    if (arg0.getAdapter().getItem(position) instanceof DisplayableItemData) {
+                        DisplayableItemData item = (DisplayableItemData) arg0.getAdapter().getItem(position);
+                        if (item.postID != 0) {
+                            // Create new fragment and transaction
+                            Fragment newFragment = new PostListingFragment();
+                            Bundle args = new Bundle();
+                            args.putInt(PostListingFragment.ARG_SECTION_TYPE, PostListingFragment.ARG_SECTION_TYPE_THREAD);
+                            args.putString(PostListingFragment.ARG_BOARD_ID, item.boardID);
+                            args.putInt(PostListingFragment.ARG_THREAD_ID, item.postID);
+                            newFragment.setArguments(args);
+
+                            FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+                            mAdapter.addFragment(newFragment);
+                            //ft.add(R.id.pager, newFragment);
+                            mPager.setCurrentItem(mAdapter.getCount() - 1);
+                            ft.addToBackStack(null);
+                            ft.commit();
+
+                            /*
+                            fList.add(newFragment);
+                            mAdapter.notifyDataSetChanged();
+
+
+                            */
+                        }
+                    }
+                }
+            });
+
+            listView.setAdapter(threadsAdapter);
+
+            return rootView;
+        }
+
 
         private void load4chanJSON(final int pgNum) {
             final FragmentActivity activity = this.getActivity();
@@ -351,65 +448,6 @@ public class ThreadsBrowser extends FragmentActivity {
                     });
 
         }
-
-        @Override
-        public void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-
-            Log.d("Fragment", "Creating vicew...");
-
-            boardID = getArguments().getString(ARG_BOARD_ID);
-            segType = getArguments().getInt(ARG_SECTION_TYPE);
-            fm = getSupportFragmentManager();
-
-            if (segType == ARG_SECTION_TYPE_BOARD) {
-                load4chanJSON(0);
-            } else {
-                threadID = getArguments().getInt(ARG_THREAD_ID);
-                load4chanJSON(0);
-            }
-        }
-
-        @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
-            Log.d("Fragment", "onCreateView()");
-            if (container == null) {
-                Log.i("Fragment", "onCreateView(): container = null");
-            }
-
-            View rootView = inflater.inflate(R.layout.tab_threads_browser, container, false);
-            ListView listView = (ListView) rootView.findViewById(R.id.listView);
-
-            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> arg0, View v, int position, long id) {
-                    //Log.d("clicked", "Position:" + position);
-                    if (arg0.getAdapter().getItem(position) instanceof DisplayableItemData) {
-                        DisplayableItemData item = (DisplayableItemData) arg0.getAdapter().getItem(position);
-                        if (item.postID != 0) {
-                            // Create new fragment and transaction
-                            Fragment newFragment = new PostListingFragment();
-                            Bundle args = new Bundle();
-                            args.putInt(PostListingFragment.ARG_SECTION_TYPE, PostListingFragment.ARG_SECTION_TYPE_THREAD);
-
-                            args.putString(PostListingFragment.ARG_BOARD_ID, item.boardID);
-                            args.putInt(PostListingFragment.ARG_THREAD_ID, item.postID);
-                            newFragment.setArguments(args);
-
-                            fList.add(newFragment);
-                            mAdapter.notifyDataSetChanged();
-                            mPager.setCurrentItem(fList.size() - 1);
-                        }
-                    }
-                }
-            });
-
-            listView.setAdapter(threadsAdapter);
-
-            return rootView;
-        }
-
 
     }
 

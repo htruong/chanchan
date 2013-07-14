@@ -16,18 +16,20 @@
             android:baselineAligned="false">
 
         <FrameLayout
-                android:layout_width="wrap_content"
-                android:layout_height="fill_parent"
-                android:background="#eee"
+                android:layout_width="@dimen/thumb_size"
+                android:layout_height="@dimen/thumb_size"
                 android:minHeight="@dimen/thumb_size"
-                android:minWidth="@dimen/thumb_size">
+                android:minWidth="@dimen/thumb_size"
+                >
 
             <ImageView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:id="@+id/image"
-                    android:layout_width="@dimen/thumb_size"
-                    android:layout_height="@dimen/thumb_size"
                     android:scaleType="centerCrop"
-                    />
+                    android:background="#eee"
+                    android:maxWidth="@dimen/thumb_size"
+                    android:maxHeight="@dimen/thumb_size"/>
         </FrameLayout>
 
         <LinearLayout
@@ -55,9 +57,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_gravity="top"
-                    android:autoLink="web"
-                    />
+                    android:layout_gravity="top"/>
 
             <TextView
                     android:layout_width="wrap_content"

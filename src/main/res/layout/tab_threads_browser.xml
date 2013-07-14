@@ -15,7 +15,7 @@
                 android:id="@+id/listView"
                 tools:listitem="@layout/post_view2"
                 android:background="#eee"
-                />
+                android:fastScrollEnabled="true"/>
 
     </LinearLayout>
 
