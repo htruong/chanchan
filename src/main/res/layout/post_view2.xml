@@ -23,11 +23,10 @@
                 >
 
             <ImageView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="@dimen/thumb_size"
+                    android:layout_height="@dimen/thumb_size"
                     android:id="@+id/image"
                     android:scaleType="centerCrop"
-                    android:background="#eee"
                     android:maxWidth="@dimen/thumb_size"
                     android:maxHeight="@dimen/thumb_size"/>
         </FrameLayout>

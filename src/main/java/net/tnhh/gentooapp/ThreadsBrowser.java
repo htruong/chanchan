@@ -1,9 +1,20 @@
 package net.tnhh.gentooapp;
 
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.lang.Runnable;
+import java.util.Random;
+
+import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
@@ -28,22 +39,18 @@ import android.widget.Toast;
 import android.text.Html;
 import android.text.Spanned;
 
+
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.koushikdutta.async.future.Future;
 import com.koushikdutta.async.future.FutureCallback;
 import com.koushikdutta.ion.Ion;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.lang.Runnable;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
 
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
-
-
-
 
 
 public class ThreadsBrowser extends FragmentActivity {
@@ -58,6 +65,17 @@ public class ThreadsBrowser extends FragmentActivity {
         public DisplayableItemData() {
         }
     }
+
+    public abstract static class SetTimeout extends Handler implements Runnable{
+
+        public SetTimeout(long milliseconds){
+
+            super(Looper.getMainLooper());
+
+            postDelayed(this, milliseconds);
+        }
+    }
+
     /**
      * The {@link android.support.v4.view.PagerAdapter} that will provide
      * fragments for each of the sections. We use a
@@ -69,6 +87,7 @@ public class ThreadsBrowser extends FragmentActivity {
 
     static ChanFragmentAdapter mAdapter;
     static ViewPager mPager;
+    private PullToRefreshAttacher mPullToRefreshAttacher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,6 +108,8 @@ public class ThreadsBrowser extends FragmentActivity {
 
         mPager = (ViewPager)findViewById(R.id.pager);
         mPager.setAdapter(mAdapter);
+
+        mPullToRefreshAttacher = new PullToRefreshAttacher(this);
     }
 
     @Override
@@ -96,6 +117,10 @@ public class ThreadsBrowser extends FragmentActivity {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.threads_browser, menu);
         return true;
+    }
+
+    PullToRefreshAttacher getPullToRefreshAttacher() {
+        return mPullToRefreshAttacher;
     }
 
     @Override
@@ -163,16 +188,17 @@ public class ThreadsBrowser extends FragmentActivity {
             notifyDataSetChanged();
             // instantiateItem(container, getCount() - 1);
         }
-
     }
 
-    public static class PostListingFragment extends Fragment {
+    public static class PostListingFragment extends Fragment  implements
+            PullToRefreshAttacher.OnRefreshListener {
         /**
          * The fragment argument representing the section number for this
          * fragment.
          */
 
         ArrayAdapter<DisplayableItemData> threadsAdapter;
+        private PullToRefreshAttacher mPullToRefreshAttacher;
 
         public static final String ARG_SECTION_TYPE = "section_type";
         public static final String ARG_BOARD_ID = "section_id";
@@ -183,11 +209,14 @@ public class ThreadsBrowser extends FragmentActivity {
         private int nextPage = 0;
         private Object jsonGroup = new Object();
         private Object imageGroup = new Object();
+        private Random generator = new Random();
 
         private Future<JsonObject> loading;
         private int segType;
         private String boardID;
         private int threadID;
+        private int lastpostID;
+        private int updateInterval = 30000;
 
         @Override
         public void onAttach(Activity activity) {
@@ -254,6 +283,8 @@ public class ThreadsBrowser extends FragmentActivity {
                 threadID = getArguments().getInt(ARG_THREAD_ID);
                 load4chanJSON(0);
             }
+
+
         }
 
         @Override
@@ -268,28 +299,36 @@ public class ThreadsBrowser extends FragmentActivity {
             View rootView = inflater.inflate(R.layout.tab_threads_browser, container, false);
             ListView listView = (ListView) rootView.findViewById(R.id.listView);
 
+            // Now get the PullToRefresh attacher from the Activity. An exercise to the reader
+            // is to create an implicit interface instead of casting to the concrete Activity
+            mPullToRefreshAttacher = ((ThreadsBrowser) getActivity())
+                    .getPullToRefreshAttacher();
 
-            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> arg0, View v, int position, long id) {
-                    //Log.d("clicked", "Position:" + position);
-                    if (arg0.getAdapter().getItem(position) instanceof DisplayableItemData) {
-                        DisplayableItemData item = (DisplayableItemData) arg0.getAdapter().getItem(position);
-                        if (item.postID != 0) {
-                            // Create new fragment and transaction
-                            Fragment newFragment = new PostListingFragment();
-                            Bundle args = new Bundle();
-                            args.putInt(PostListingFragment.ARG_SECTION_TYPE, PostListingFragment.ARG_SECTION_TYPE_THREAD);
-                            args.putString(PostListingFragment.ARG_BOARD_ID, item.boardID);
-                            args.putInt(PostListingFragment.ARG_THREAD_ID, item.postID);
-                            newFragment.setArguments(args);
+            // Now set the ScrollView as the refreshable view, and the refresh listener (this)
+            mPullToRefreshAttacher.setRefreshableView(listView, this);
 
-                            //FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
-                            mAdapter.addFragment(newFragment);
-                            //ft.add(R.id.pager, newFragment);
-                            mPager.setCurrentItem(mAdapter.getCount() - 1);
-                            //ft.addToBackStack(null);
-                            //ft.commit();
+            if (segType == ARG_SECTION_TYPE_BOARD) {
+                listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                    @Override
+                    public void onItemClick(AdapterView<?> arg0, View v, int position, long id) {
+                        //Log.d("clicked", "Position:" + position);
+                        if (arg0.getAdapter().getItem(position) instanceof DisplayableItemData) {
+                            DisplayableItemData item = (DisplayableItemData) arg0.getAdapter().getItem(position);
+                            if (item.postID != 0) {
+                                // Create new fragment and transaction
+                                Fragment newFragment = new PostListingFragment();
+                                Bundle args = new Bundle();
+                                args.putInt(PostListingFragment.ARG_SECTION_TYPE, PostListingFragment.ARG_SECTION_TYPE_THREAD);
+                                args.putString(PostListingFragment.ARG_BOARD_ID, item.boardID);
+                                args.putInt(PostListingFragment.ARG_THREAD_ID, item.postID);
+                                newFragment.setArguments(args);
+
+                                //FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+                                mAdapter.addFragment(newFragment);
+                                //ft.add(R.id.pager, newFragment);
+                                mPager.setCurrentItem(mAdapter.getCount() - 1);
+                                //ft.addToBackStack(null);
+                                //ft.commit();
 
                             /*
                             fList.add(newFragment);
@@ -297,10 +336,11 @@ public class ThreadsBrowser extends FragmentActivity {
 
 
                             */
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
 
             listView.setAdapter(threadsAdapter);
 
@@ -317,141 +357,202 @@ public class ThreadsBrowser extends FragmentActivity {
 
             String url = "";
             if (segType == ARG_SECTION_TYPE_BOARD) {
-                url = String.format("https://api.4chan.org/%s/%d.json", boardID, pgNum);
+                url = String.format(
+                        "https://api.4chan.org/%s/%d.json?cacheID=%d&clientID=chanchan",
+                        boardID, pgNum, generator.nextInt());
             } else if (segType == ARG_SECTION_TYPE_THREAD) {
-                url = String.format("https://api.4chan.org/%s/res/%d.json", boardID, threadID);
+                url = String.format(
+                        "https://api.4chan.org/%s/res/%d.json?cacheID=%d&clientID=chanchan",
+                        boardID, threadID, generator.nextInt());
             }
 
             Log.d("BoardLoader", "Loading thread/board JSON...");
 
             nextPage = pgNum + 1;
 
+            FutureCallback<JsonObject> cacherUpdater = new FutureCallback<JsonObject>() {
+                @Override
+                public void onCompleted(Exception e, JsonObject result) {
+                    Log.d("ThreadLoader", "Loading threads list done!");
+                    //progressBar.setProgress(100);
+                    // this is called back onto the ui thread, no Activity.runOnUiThread or Handler.post necessary.
+                    if (e != null) {
+                        //Toast.makeText(activity, "Error loading board or thread...", Toast.LENGTH_LONG).show();
+                        Log.d("Fatal", e.toString());
+                        return;
+                    }
+                    // add the tweets
+                    JsonArray threads = result.get(
+                            segType == ARG_SECTION_TYPE_BOARD ? "threads" : "posts"
+                    ).getAsJsonArray();
+
+                    Log.d("ThreadLoader", "Adding to list... " + threads.size() + " items.");
+                    if (threads.size() == 0)
+                        nextPage = -1;
+
+                    String imageUrl;
+                    boolean gotNewPosts = false;
+
+                    for (int i = 0; i < threads.size(); i++) {
+                        DisplayableItemData cachedItem = new DisplayableItemData();
+
+                        JsonObject currentItem = threads.get(i).getAsJsonObject();
+
+                        /////////////////////////////////////////////////////////////////
+
+
+                        String postTitle = null;
+                        String imageUri = null;
+                        String comments = null;
+                        String smallMeta = null;
+
+                        try {
+                            JsonObject post = null;
+
+                            if (segType == ARG_SECTION_TYPE_BOARD) {
+
+                                JsonArray posts = currentItem.get("posts").getAsJsonArray();
+                                post = posts.get(0).getAsJsonObject();
+
+                                cachedItem.postID = post.get("no").getAsInt();
+                                cachedItem.boardID = boardID;
+
+                                int repliesCount = post.get("replies").getAsInt();
+                                int imgCount = post.get("images").getAsInt();
+
+                                smallMeta =  String.format(
+                                        "<b>%d</b> replies, <b>%d</b> images. Click to view.",
+                                        repliesCount, imgCount);
+
+                            } else if (segType == ARG_SECTION_TYPE_THREAD) {
+
+                                post = currentItem;
+
+                                cachedItem.postID = post.get("no").getAsInt();
+                                if (lastpostID >= cachedItem.postID) {
+                                    Log.d("ThreadUpdater", "Item is old, skipping...");
+                                    continue;
+                                } else {
+                                    Log.d("ThreadUpdater", "Item is new, adding...");
+                                    gotNewPosts = true;
+                                }
+                                lastpostID = cachedItem.postID;
+                            } else {
+
+                            }
+
+                            if (post.get("sub") != null) {
+                                postTitle = String.format("%s <b>%s</b>", post.get("name").getAsString(), post.get("sub").getAsString());
+                            } else if (post.get("name") != null) {
+                                postTitle = String.format("%s", post.get("name").getAsString());
+                            } else {
+                                postTitle = "*Anonymous*";
+                            }
+
+
+                            if (post.get("tim") != null) {
+                                // set the profile photo using Ion
+                                imageUri = String.format(
+                                        "https://0.thumbs.4chan.org/g/thumb/%ss%s",
+                                        post.get("tim").getAsString(),
+                                        ".jpg"/*post.get("ext").getAsString()*/);
+                                // "http://images.thumbs.4chan.org/g/thumb/" + post.get("filename").getAsString() + post.get("ext").getAsString();
+
+                                //Log.d("image-fetcher", imageUri);
+
+                                // start with the ImageView
+                                final DisplayableItemData finalCachedItem = cachedItem;
+                                Ion.with(getActivity(), imageUri)
+                                        .group(imageGroup)
+                                        .asBitmap()
+                                        .setCallback(new FutureCallback<Bitmap>() {
+                                            @Override
+                                            public void onCompleted(Exception e, Bitmap result) {
+                                                if (e != null) {
+                                                    finalCachedItem.img = null;
+                                                    return;
+                                                }
+                                                finalCachedItem.img = result;
+                                            }
+                                        });
+                            } else {
+                                cachedItem.img = null;
+                            }
+
+                            comments = post.get("com").getAsString();
+
+
+                        } catch (Exception err) {
+                            comments = null;
+                            postTitle = null;
+                        }
+
+                        if (postTitle != null)
+                            cachedItem.titleLine =  Html.fromHtml(postTitle);
+
+                        if (comments != null)
+                            cachedItem.comments = Html.fromHtml(comments);
+
+                        if (smallMeta != null)
+                            cachedItem.metaData = Html.fromHtml(smallMeta);
+
+
+                        threadsAdapter.add(cachedItem);
+                    }
+                    if (segType == ARG_SECTION_TYPE_THREAD) {
+                        if (gotNewPosts) {
+                            updateInterval = updateInterval / 2;
+                        } else {
+                            updateInterval = updateInterval * 2;
+                        }
+
+                        new SetTimeout(updateInterval) {
+                            public void run() {
+                                Log.d("ThreadUpdater", "Updating thread...");
+                                load4chanJSON(0);
+                                //postDelayed(this, updateInterval);
+                            }
+                        };
+                    }
+
+                }
+            };
+
+
             //Ion.getDefault(this.getActivity()).proxy("128.206.129.203", 8888);
             loading = Ion.with(activity, url)
-                    //.setLogging("thread-fetcher", Log.DEBUG)
+                    .setTimeout(10)
+                    .setLogging("threadUpdater", Log.DEBUG)
                     .group(jsonGroup)
                     .asJsonObject()
-                    .setCallback(new FutureCallback<JsonObject>() {
-                        @Override
-                        public void onCompleted(Exception e, JsonObject result) {
-                            Log.d("ThreadLoader", "Loading threads list done!");
-                            //progressBar.setProgress(100);
-                            // this is called back onto the ui thread, no Activity.runOnUiThread or Handler.post necessary.
-                            if (e != null) {
-                                //Toast.makeText(activity, "Error loading board or thread...", Toast.LENGTH_LONG).show();
-                                Log.d("Fatal", e.toString());
-                                return;
-                            }
-                            // add the tweets
-                            JsonArray threads = result.get(
-                                    segType == ARG_SECTION_TYPE_BOARD ? "threads" : "posts"
-                            ).getAsJsonArray();
-
-                            Log.d("ThreadLoader", "Adding to list... " + threads.size() + " items.");
-                            if (threads.size() == 0)
-                                nextPage = -1;
-
-                            String imageUrl;
-                            for (int i = 0; i < threads.size(); i++) {
-                                DisplayableItemData cachedItem = new DisplayableItemData();
-
-                                JsonObject currentItem = threads.get(i).getAsJsonObject();
-
-                                /////////////////////////////////////////////////////////////////
-
-
-                                String postTitle = null;
-                                String imageUri = null;
-                                String comments = null;
-                                String smallMeta = null;
-
-                                try {
-                                    JsonObject post = null;
-
-                                    if (segType == ARG_SECTION_TYPE_BOARD) {
-
-                                        JsonArray posts = currentItem.get("posts").getAsJsonArray();
-                                        post = posts.get(0).getAsJsonObject();
-
-                                        cachedItem.postID = post.get("no").getAsInt();
-                                        cachedItem.boardID = boardID;
-
-                                        int repliesCount = post.get("replies").getAsInt();
-                                        int imgCount = post.get("images").getAsInt();
-
-                                        smallMeta =  String.format("<b>%d</b> replies, <b>%d</b> images. Click to view.", repliesCount, imgCount);
-
-                                    } else if (segType == ARG_SECTION_TYPE_THREAD) {
-                                        post = currentItem;
-                                    } else {
-
-                                    }
-
-                                    if (post.get("sub") != null) {
-                                        postTitle = String.format("%s <b>%s</b>", post.get("name").getAsString(), post.get("sub").getAsString());
-                                    } else if (post.get("name") != null) {
-                                        postTitle = String.format("%s", post.get("name").getAsString());
-                                    } else {
-                                        postTitle = "*Anonymous*";
-                                    }
-
-
-                                    if (post.get("tim") != null) {
-                                        // set the profile photo using Ion
-                                        imageUri = String.format(
-                                                "https://0.thumbs.4chan.org/g/thumb/%ss%s",
-                                                post.get("tim").getAsString(),
-                                                ".jpg"/*post.get("ext").getAsString()*/);
-                                        // "http://images.thumbs.4chan.org/g/thumb/" + post.get("filename").getAsString() + post.get("ext").getAsString();
-
-                                        //Log.d("image-fetcher", imageUri);
-
-                                        // start with the ImageView
-                                        final DisplayableItemData finalCachedItem = cachedItem;
-                                        Ion.with(getActivity(), imageUri)
-                                                .group(imageGroup)
-                                                .asBitmap()
-                                                .setCallback(new FutureCallback<Bitmap>() {
-                                                    @Override
-                                                    public void onCompleted(Exception e, Bitmap result) {
-                                                        if (e != null) {
-                                                            finalCachedItem.img = null;
-                                                            return;
-                                                        }
-                                                        finalCachedItem.img = result;
-                                                    }
-                                                });
-                                    } else {
-                                        cachedItem.img = null;
-                                    }
-
-                                    comments = post.get("com").getAsString();
-
-                                } catch (Exception err) {
-                                    comments = null;
-                                    postTitle = null;
-                                }
-
-                                if (postTitle != null)
-                                    cachedItem.titleLine =  Html.fromHtml(postTitle);
-
-                                if (comments != null)
-                                    cachedItem.comments = Html.fromHtml(comments);
-
-                                if (smallMeta != null)
-                                    cachedItem.metaData = Html.fromHtml(smallMeta);
-
-
-                                threadsAdapter.add(cachedItem);
-
-
-                            }
-
-                        }
-                    });
-
+                    .setCallback(cacherUpdater);
         }
 
+        @Override
+        public void onRefreshStarted(View view) {
+            threadsAdapter.clear();
+            lastpostID = 0;
+            load4chanJSON(0);
+            mPullToRefreshAttacher.setRefreshComplete();
+        }
+
+        // Allow Activity to pass us it's PullToRefreshAttacher
+        void setPullToRefreshAttacher(PullToRefreshAttacher attacher) {
+            mPullToRefreshAttacher = attacher;
+        }
+
+        @Override
+        public void setUserVisibleHint(boolean isVisibleToUser) {
+            super.setUserVisibleHint(isVisibleToUser);
+            Log.d("Fragment", String.format("setUserVisibleHint(%s, %s)", this.threadID, isVisibleToUser));
+            if (mPullToRefreshAttacher == null) return;
+            if (isVisibleToUser) {
+                ListView listView = (ListView) getView().findViewById(R.id.listView);
+
+                // Now set the ScrollView as the refreshable view, and the refresh listener (this)
+                mPullToRefreshAttacher.setRefreshableView(listView, this);
+            }
+        }
     }
 
 
